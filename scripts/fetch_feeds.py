@@ -65,7 +65,7 @@ def fetch_one(feed_info, cutoff):
             return articles
         for entry in d.entries:
             pub = parse_date(entry)
-            if pub and pub < cutoff:
+            if pub is None or pub < cutoff:
                 continue
             title = entry.get("title", "").strip()
             link = entry.get("link", "").strip()
