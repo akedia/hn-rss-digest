@@ -1,64 +1,79 @@
 ---
 name: hn-rss-digest
-description: RSS daily digest of the most popular Hacker News blogs in 2025. Aggregates tech news from 90+ top HN blogs into a concise daily summary.
+description: >-
+  RSS daily digest of the most popular Hacker News blogs in 2025.
+  Aggregates tech news from 92 top HN blogs into a concise daily summary with Chinese summaries.
+  Use when: generating tech blog daily reports, checking what's new in the tech blogosphere,
+  HN popular blogs digest, RSS aggregation, tech news summary.
+  Triggers: HN日报, RSS日报, 技术博客, Hacker News, tech blogs digest, RSS digest.
 ---
 
 # HN RSS Daily Digest
 
-Generate a daily digest of new articles from the most popular blogs on Hacker News (2025 edition). Covers 90+ tech blogs including simonwillison.net, krebsonsecurity.com, daringfireball.net, paulgraham.com, and more.
+从 HN 2025 最受欢迎的 92 个技术博客中聚合最新文章，生成每日摘要。
 
-## Usage
+## 日报生成流程
 
-### Quick one-liner
+### 第一步：抓取文章
 
 ```bash
-cd /home/clawd/clawd/skills/hn-rss-digest
-python3 scripts/fetch_feeds.py | python3 scripts/generate_digest.py
+cd <SKILL_DIR>
+python3 scripts/fetch_feeds.py --hours 24 --limit 20 > /tmp/hn_articles.json
 ```
 
-### Step by step
+### 第二步：生成日报并发送
 
-1. **Fetch recent articles** (last 24 hours by default):
-```bash
-python3 scripts/fetch_feeds.py --hours 24 --limit 50
+日报需要 **中文摘要**，脚本只输出英文原文摘要。生成后必须由 Agent 将标题和摘要翻译为中文再发送。
+
+格式要求（和 X/Twitter 日报保持一致）：
+
+```markdown
+# 🗞️ HN 热门博客日报 YYYY-MM-DD
+> 来自 HN 2025 最受欢迎的 92 个技术博客，本期精选 N 篇新文章。
+
+---
+
+## 1. [中文标题]
+> from [博客名] YYYY-MM-DD
+
+**📝 摘要**：[中文摘要，2-3 句话概括核心内容]
+
+**🔗 原文**：[查看原文](URL)
+
+---
+
+## 2. ...
 ```
 
-2. **Generate the digest** (pipe from step 1):
-```bash
-python3 scripts/fetch_feeds.py | python3 scripts/generate_digest.py --format markdown --lang en
-```
+### 格式规范
 
-### Options
+- 标题和摘要必须是 **中文**
+- 摘要 2-3 句话，抓核心信息，不要直译
+- 前 10 篇详细写（编号 + 摘要），剩余用列表简写
+- 通过 DingTalk markdown message 发送（`message action=send`）
+- 文末注明数据来源
+
+### 参数说明
 
 **fetch_feeds.py**:
-- `--hours N` — Look back N hours (default: 24)
-- `--limit N` — Max articles (default: 50)
-- `--workers N` — Concurrent fetchers (default: 10)
-- `--feeds PATH` — Custom feeds.json path
+- `--hours N` — 回溯小时数（默认 24）
+- `--limit N` — 最大文章数（默认 50，日报建议 20）
+- `--workers N` — 并发数（默认 10）
+- `--timeout N` — 总超时秒数（默认 60）
 
 **generate_digest.py**:
-- `--input FILE` — Read JSON from file instead of stdin
-- `--format markdown|dingtalk` — Output format (default: markdown)
-- `--lang en|cn` — Output language (default: en)
+- `--input FILE` — 从文件读取（默认 stdin）
+- `--format markdown|dingtalk` — 输出格式
+- `--lang cn|en` — 输出语言（默认 cn）
 
-### DingTalk daily report
+## Feed 来源
 
-```bash
-python3 scripts/fetch_feeds.py --hours 24 | python3 scripts/generate_digest.py --format dingtalk --lang cn
-```
+`references/feeds.json` 包含 92 个 RSS 源，来自 [HN 2025 Popularity Contest](https://refactoringenglish.com/tools/hn-popularity/)。
 
-### Save to file
+主要博客：simonwillison.net, paulgraham.com, krebsonsecurity.com, daringfireball.net, geohot, gwern, pluralistic.net 等。
 
-```bash
-python3 scripts/fetch_feeds.py > /tmp/articles.json
-python3 scripts/generate_digest.py --input /tmp/articles.json > /tmp/digest.md
-```
+## 注意事项
 
-## Feed Sources
-
-All feeds are stored in `references/feeds.json`. They come from the OPML export of [The Most Popular Blogs of Hacker News in 2025](https://refactoringenglish.com/tools/hn-popularity/).
-
-## Dependencies
-
-- Python 3
-- `feedparser` (`pip install feedparser`)
+- 部分 RSS（如 paulgraham.com）没有时间戳，脚本会自动跳过无日期的文章
+- 抓取 92 个源需要约 30-45 秒
+- 少数源可能因反爬/超时失败，脚本会跳过并继续
