@@ -8,86 +8,105 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 
-def format_time(iso_str):
-    """Format ISO time string to a readable format."""
+def format_date(iso_str):
+    """Format ISO time string."""
     if not iso_str:
         return ""
     try:
         dt = datetime.fromisoformat(iso_str)
-        return dt.strftime("%H:%M")
+        return dt.strftime("%Y-%m-%d %H:%M")
     except Exception:
         return ""
 
 
-def generate_markdown(articles, lang="en"):
-    """Generate markdown digest."""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+def truncate(text, maxlen=300):
+    """Truncate text to maxlen chars."""
+    if not text:
+        return ""
+    text = text.strip()
+    if len(text) > maxlen:
+        return text[:maxlen-3] + "..."
+    return text
 
-    # Group by feed
-    by_feed = defaultdict(list)
-    for a in articles:
-        by_feed[a["feed"]].append(a)
+
+def generate_dingtalk(articles, lang="cn"):
+    """Generate DingTalk markdown format, matching X daily report style."""
+    from datetime import timedelta
+    today = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")
+
+    lines = []
+    lines.append(f"# 🗞️ HN 热门博客日报 {today}")
+    lines.append(f"> 来自 HN 2025 最受欢迎的 92 个技术博客，本期精选 {len(articles)} 篇新文章。")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    for i, a in enumerate(articles, 1):
+        feed = a.get("feed", "")
+        title = a.get("title", "")
+        link = a.get("link", "")
+        summary = truncate(a.get("summary", ""), 300)
+        pub = format_date(a.get("published"))
+
+        lines.append(f"## {i}. {title}")
+        lines.append(f"> from {feed} {pub}")
+        lines.append("")
+        if summary:
+            lines.append(f"**📝 摘要**：{summary}")
+            lines.append("")
+        lines.append(f"**🔗 原文**：[查看原文]({link})")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+    lines.append(f"*数据来源：HN 2025 最受欢迎博客 RSS 聚合 | 共监控 92 个博客*")
+    return "\n".join(lines)
+
+
+def generate_markdown(articles, lang="en"):
+    """Generate full markdown digest."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     lines = []
     if lang == "cn":
-        lines.append(f"# 📰 HN 热门博客日报 — {today}")
-        lines.append("")
-        lines.append(f"共 **{len(articles)}** 篇新文章，来自 **{len(by_feed)}** 个博客。")
+        lines.append(f"# 🗞️ HN 热门博客日报 {today}")
+        lines.append(f"> 来自 HN 2025 最受欢迎的 92 个技术博客，本期精选 {len(articles)} 篇新文章。")
     else:
-        lines.append(f"# 📰 HN Popular Blogs Daily Digest — {today}")
-        lines.append("")
-        lines.append(f"**{len(articles)}** new articles from **{len(by_feed)}** blogs.")
+        lines.append(f"# 🗞️ HN Popular Blogs Daily Digest — {today}")
+        lines.append(f"> {len(articles)} new articles from the most popular HN blogs of 2025.")
 
     lines.append("")
     lines.append("---")
     lines.append("")
 
-    # Sort feeds by number of articles (descending)
-    for feed_name, feed_articles in sorted(by_feed.items(), key=lambda x: -len(x[1])):
-        lines.append(f"## {feed_name}")
+    for i, a in enumerate(articles, 1):
+        feed = a.get("feed", "")
+        title = a.get("title", "")
+        link = a.get("link", "")
+        summary = truncate(a.get("summary", ""), 300)
+        pub = format_date(a.get("published"))
+
+        lines.append(f"## {i}. {title}")
+        lines.append(f"> from {feed} {pub}")
         lines.append("")
-        for a in feed_articles:
-            t = format_time(a.get("published"))
-            time_str = f" `{t}`" if t else ""
-            lines.append(f"- [{a['title']}]({a['link']}){time_str}")
-            if a.get("summary"):
-                lines.append(f"  > {a['summary']}")
+        if summary:
+            if lang == "cn":
+                lines.append(f"**📝 摘要**：{summary}")
+            else:
+                lines.append(f"**📝 Summary**: {summary}")
             lines.append("")
+        if lang == "cn":
+            lines.append(f"**🔗 原文**：[查看原文]({link})")
+        else:
+            lines.append(f"**🔗 Link**: [Read more]({link})")
+        lines.append("")
+        lines.append("---")
         lines.append("")
 
     if lang == "cn":
-        lines.append("---")
-        lines.append("*数据来源：HN 2025 最受欢迎博客 RSS 聚合*")
+        lines.append(f"*数据来源：HN 2025 最受欢迎博客 RSS 聚合 | 共监控 92 个博客*")
     else:
-        lines.append("---")
-        lines.append("*Source: The Most Popular Blogs of Hacker News 2025*")
-
-    return "\n".join(lines)
-
-
-def generate_dingtalk(articles, lang="en"):
-    """Generate simplified format for DingTalk messages."""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
-    by_feed = defaultdict(list)
-    for a in articles:
-        by_feed[a["feed"]].append(a)
-
-    lines = []
-    if lang == "cn":
-        lines.append(f"📰 HN热门博客日报 {today}")
-        lines.append(f"共{len(articles)}篇新文章")
-        lines.append("")
-    else:
-        lines.append(f"📰 HN Blogs Digest {today}")
-        lines.append(f"{len(articles)} new articles")
-        lines.append("")
-
-    for feed_name, feed_articles in sorted(by_feed.items(), key=lambda x: -len(x[1])):
-        lines.append(f"**{feed_name}**")
-        for a in feed_articles:
-            lines.append(f"- [{a['title']}]({a['link']})")
-        lines.append("")
+        lines.append(f"*Source: The Most Popular Blogs of Hacker News 2025 | 92 blogs monitored*")
 
     return "\n".join(lines)
 
@@ -97,8 +116,8 @@ def main():
     parser.add_argument("--input", "-i", type=str, default=None, help="Input JSON file (default: stdin)")
     parser.add_argument("--format", "-f", type=str, default="markdown", choices=["markdown", "dingtalk"],
                         help="Output format (default: markdown)")
-    parser.add_argument("--lang", "-l", type=str, default="en", choices=["en", "cn"],
-                        help="Output language (default: en)")
+    parser.add_argument("--lang", "-l", type=str, default="cn", choices=["en", "cn"],
+                        help="Output language (default: cn)")
     args = parser.parse_args()
 
     if args.input:
